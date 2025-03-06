@@ -2,6 +2,9 @@
 session_start();
 require 'config.php';
 
+// UTF-8-Einstellung für die laufende MySQL-Verbindung
+$pdo->exec("SET NAMES 'utf8mb4'");
+
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit();
@@ -22,20 +25,21 @@ $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
 </head>
 <body>
     <header>
-            <div class="header-container">
-                <div class="logo">
-                    <h1>Nerdeal</h1>
-                </div>
-                <nav>
-                    <a href="index.php">Startseite</a>
-                    <a href="profile.php">Mein Profil</a>
-                    <a href="logout.php">Abmelden</a>
-                </nav>
+        <div class="header-container">
+            <div class="logo">
+                <h1>Nerdeal</h1>
             </div>
-        </header>
+            <nav>
+                <a href="index.php">Startseite</a>
+                <a href="profile.php">Mein Profil</a>
+                <a href="logout.php">Abmelden</a>
+            </nav>
+        </div>
+    </header>
+
     <main>
         <h2>Anzeige aufgeben</h2>
-        <form action="process_listing.php" method="POST" enctype="multipart/form-data">
+        <form action="process_listings.php" method="POST" enctype="multipart/form-data">
             <label for="title">Titel:</label>
             <input type="text" id="title" name="title" required>
 
@@ -43,7 +47,9 @@ $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <select id="category" name="category" required>
                 <option value="">Wähle eine Kategorie</option>
                 <?php foreach ($categories as $cat): ?>
-                    <option value="<?php echo $cat['id']; ?>"><?php echo htmlspecialchars($cat['name']); ?></option>
+                    <option value="<?php echo $cat['id']; ?>">
+                        <?php echo htmlspecialchars($cat['name']); ?>
+                    </option>
                 <?php endforeach; ?>
             </select>
 
@@ -61,16 +67,8 @@ $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <label for="images">Bilder (empfohlen):</label>
             <input type="file" id="images" name="images[]" multiple accept="image/*">
 
-            <h3>Ort</h3>
-            <label for="plz">PLZ:</label>
-            <input type="text" id="plz" name="plz" pattern="\d{5}">
-
-            <label for="street">Straße/Nr. (optional):</label>
-            <input type="text" id="street" name="street">
-
-            <h3>Deine Angaben</h3>
-            <label>Name:</label>
-            <input type="text" value="<?php echo htmlspecialchars($_SESSION['username']); ?>" disabled>
+            <label for="plz">Postleitzahl/Stadt:</label>
+            <input type="text" id="plz" name="plz" placeholder="Optional">
 
             <button type="submit">Anzeige veröffentlichen</button>
         </form>
