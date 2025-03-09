@@ -1,38 +1,104 @@
+<?php
+session_start();
+require 'config.php';
+
+if (!isset($_SESSION['user_id'])) {
+    die("Not authorized.");
+}
+
+$pdo->exec("SET NAMES 'utf8mb4'");
+
+$chatId = $_GET['id'] ?? null;
+if (!$chatId) {
+    die("No chat specified.");
+}
+
+$stmt = $pdo->prepare("SELECT * FROM chats WHERE id = ? AND (user1_id = ? OR user2_id = ?)");
+$stmt->execute([$chatId, $_SESSION['user_id'], $_SESSION['user_id']]);
+$chat = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$chat) {
+    die("You do not have access to this chat.");
+}
+
+$userId = $_SESSION['user_id'];
+
+$partnerId = ($chat['user1_id'] == $userId) ? $chat['user2_id'] : $chat['user1_id'];
+
+$stmtUser = $pdo->prepare("SELECT username FROM user WHERE id = ?");
+$stmtUser->execute([$partnerId]);
+$partnerRow = $stmtUser->fetch(PDO::FETCH_ASSOC);
+$partnerName = $partnerRow ? $partnerRow['username'] : '???';
+
+$stmtMsg = $pdo->prepare("SELECT * FROM messages WHERE chat_id = ? ORDER BY created_at ASC");
+$stmtMsg->execute([$chatId]);
+$messages = $stmtMsg->fetchAll(PDO::FETCH_ASSOC);
+?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Chat – Demo mit Foto-Button</title>
+  <title>Nerdeal - Chat</title>
   <style>
-    body {
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
       font-family: Arial, sans-serif;
       background: #f4f4f4;
-      margin: 0; 
-      padding: 0;
     }
 
     .chat-container {
-      width: 100%;
-      max-width: 600px;
-      height: 600px; /* Feste Höhe des Chat-Fensters */
-      margin: 40px auto;
-      background: #fff;
-      border-radius: 8px;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      width: 100%;
+      height: 100%;
+      background: #fff;
     }
 
     .chat-header {
-      background: #3498db;
-      color: #fff;
-      padding: 10px;
-      border-radius: 8px 8px 0 0;
-      text-align: center;
+      background-color: #2c3e50;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 30px;  
+    }
+
+    .chat-header .logo {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .chat-header .logo h1 {
+      font-size: 24px;  
+      margin: 0;
+    }
+
+    .chat-header .chat-title {
+      font-size: 18px;  
+      font-weight: normal;
+      opacity: 0.9;
+    }
+
+    .chat-header nav a {
+      color: white;
+      text-decoration: none;
+      font-size: 16px;
+      margin-left: 20px;
+    }
+
+    .chat-header nav a:hover {
+      text-decoration: underline;
     }
 
     .chat-messages {
-      flex: 1; /* Nimmt den verbleibenden Platz ein */
+      flex: 1;
       overflow-y: auto;
       padding: 10px;
     }
@@ -44,7 +110,8 @@
       max-width: 80%;
       word-wrap: break-word;
       clear: both;
-      position: relative; 
+      position: relative;
+      font-size: 14px;
     }
 
     .message.mine {
@@ -86,10 +153,13 @@
       background: #3498db;
       color: #fff;
       border: none;
-      padding: 8px 16px;
+      padding: 8px 12px;
       border-radius: 4px;
       cursor: pointer;
       font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       margin-right: 10px;
     }
 
@@ -101,42 +171,65 @@
       background: #2980b9;
     }
 
-    /* Verstecktes File-Input */
+    .send-icon {
+      font-size: 16px;
+      margin-left: 4px;
+    }
+
     #photoInput {
       display: none;
+    }
+
+    .chat-image {
+      max-width: 200px;
+      border-radius: 5px;
+      display: block;
+      margin-top: 5px;
     }
   </style>
 </head>
 <body>
   <div class="chat-container">
     <div class="chat-header">
-      <h2>Chat-Demo</h2>
+      <div class="logo">
+        <h1>Nerdeal</h1>
+        <span class="chat-title">Chat with <?= htmlspecialchars($partnerName) ?></span>
+      </div>
+      <nav>
+        <a href="index.php">Home</a>
+        <a href="profile.php">Mein Profil</a>
+        <a href="logout.php">Abmelden</a>
+      </nav>
     </div>
 
     <div class="chat-messages" id="chatMessages">
-      <!-- Beispiel-Nachrichten -->
-      <div class="message theirs">
-        Hallo! Wie kann ich helfen?
-        <span class="timestamp">12:00</span>
-      </div>
-      <div class="message mine">
-        Ich schaue mich nur um.
-        <span class="timestamp">12:01</span>
-      </div>
+      <?php foreach ($messages as $msg):
+          $senderClass = ($msg['sender_id'] == $userId) ? 'mine' : 'theirs';
+      ?>
+        <div class="message <?= $senderClass ?>">
+          <?php 
+            $lower = strtolower($msg['content']);
+            if (strpos($lower, 'data:image/') === 0 || preg_match('/\\.(png|jpg|jpeg|gif)$/i', $lower)) {
+              echo '<img src="' . htmlspecialchars($msg['content']) . '" class="chat-image" alt="Bild">';
+            } else {
+              echo nl2br(htmlspecialchars($msg['content']));
+            }
+          ?>
+          <span class="timestamp">
+            <?= date('H:i', strtotime($msg['created_at'])) ?>
+          </span>
+        </div>
+      <?php endforeach; ?>
     </div>
 
     <div class="chat-input">
-      <!-- Verstecktes Input für Fotos -->
       <input type="file" id="photoInput" accept="image/*" multiple>
-
-      <!-- Foto-Button, löst das File-Picker-Fenster aus -->
       <button id="photoBtn">Foto</button>
 
-      <!-- Text-Eingabe -->
       <input type="text" id="chatInput" placeholder="Nachricht eingeben..." />
-
-      <!-- Senden-Button -->
-      <button id="sendBtn">Senden</button>
+      <button id="sendBtn">
+        ➤
+      </button>
     </div>
   </div>
 
@@ -147,56 +240,98 @@
     const photoBtn = document.getElementById('photoBtn');
     const photoInput = document.getElementById('photoInput');
 
-    // Funktion, um Uhrzeit als HH:MM zurückzugeben
-    function getTimeStamp() {
-      const now = new Date();
-      const hours = now.getHours().toString().padStart(2, '0');
-      const minutes = now.getMinutes().toString().padStart(2, '0');
-      return `${hours}:${minutes}`;
-    }
+    const userId = <?= json_encode($userId) ?>;
+    const partnerId = <?= json_encode($partnerId) ?>;
+    const chatId = <?= json_encode($chatId) ?>;
 
-    // Neue Nachricht in den Chat einfügen
-    function addMessage(text, sender = 'mine') {
-      const newMsg = document.createElement('div');
-      newMsg.classList.add('message', sender);
-      newMsg.innerHTML = `
-        ${text}
-        <span class="timestamp">${getTimeStamp()}</span>
-      `;
-      chatMessages.appendChild(newMsg);
+    const ws = new WebSocket('ws://localhost:8080?user=' + userId);
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.chatId == chatId) {
+        displayMessage(data.content, (data.senderId == userId) ? 'mine' : 'theirs');
+      }
+    };
+
+    function displayMessage(content, sender='mine') {
+      const msgDiv = document.createElement('div');
+      msgDiv.classList.add('message', sender);
+
+      const lower = content.toLowerCase();
+      if (lower.startsWith('data:image/') || /\.(png|jpg|jpeg|gif)$/i.test(lower)) {
+        msgDiv.innerHTML = `
+          <img src="${content}" class="chat-image" alt="Bild">
+          <span class="timestamp">${currentTime()}</span>
+        `;
+      } else {
+        msgDiv.innerHTML = `
+          ${content}
+          <span class="timestamp">${currentTime()}</span>
+        `;
+      }
+      chatMessages.appendChild(msgDiv);
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    // Senden-Button
-    sendBtn.addEventListener('click', () => {
+    function currentTime() {
+      const now = new Date();
+      return now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    }
+
+    function sendMessage() {
       const msg = chatInput.value.trim();
       if (msg !== '') {
-        addMessage(msg, 'mine');
+        displayMessage(msg, 'mine');
+
+        ws.send(JSON.stringify({
+          type: 'chatMessage',
+          chatId: chatId,
+          senderId: userId,
+          recipientId: partnerId,
+          content: msg
+        }));
+
         chatInput.value = '';
       }
+    }
+
+    sendBtn.addEventListener('click', () => {
+      sendMessage();
     });
 
-    // Enter-Taste -> Klick auf Senden
     chatInput.addEventListener('keyup', (e) => {
       if (e.key === 'Enter') {
-        sendBtn.click();
+        sendMessage();
       }
     });
 
-    // Klick auf Foto-Button -> verstecktes File-Input öffnen
     photoBtn.addEventListener('click', () => {
       photoInput.click();
     });
 
-    // Beispiel: Dateien ausgewählt
     photoInput.addEventListener('change', () => {
       const files = photoInput.files;
-      if (files.length > 0) {
-        // Hier könntest du die Files hochladen oder anzeigen.
-        // Wir zeigen nur eine kurze Nachricht an.
-        addMessage(`[${files.length} Foto(s) ausgewählt]`, 'mine');
+      if (!files.length) return;
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const dataUrl = e.target.result;
+          displayMessage(dataUrl, 'mine');
+          ws.send(JSON.stringify({
+            type: 'chatMessage',
+            chatId: chatId,
+            senderId: userId,
+            recipientId: partnerId,
+            content: dataUrl
+          }));
+        };
+        reader.readAsDataURL(file);
       }
     });
+
+    chatMessages.scrollTop = chatMessages.scrollHeight;
   </script>
 </body>
 </html>

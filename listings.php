@@ -2,7 +2,6 @@
 session_start();
 require 'config.php';
 
-// UTF-8-Einstellung für die laufende MySQL-Verbindung
 $pdo->exec("SET NAMES 'utf8mb4'");
 
 if (!isset($_SESSION['user_id'])) {
@@ -10,7 +9,6 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-// Kategorien aus der Datenbank abrufen
 $stmt = $pdo->query("SELECT id, name FROM Categories ORDER BY name");
 $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>

@@ -4,22 +4,14 @@ require 'config.php';
 
 $pdo->exec("SET NAMES 'utf8mb4'");
 
-// Prüfen, ob user eingeloggt
 $loggedIn = isset($_SESSION['user_id']);
 
-// Kategorien abrufen (für linke Navbar)
 $catStmt = $pdo->query("SELECT id, name FROM Categories ORDER BY name");
 $categories = $catStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// GET-Parameter für Kategorie und Suche abfragen
 $catFilter   = $_GET['category'] ?? null;
 $searchParam = $_GET['search']   ?? null;
 
-/**
- * Grundabfrage:
- * Wir JOINen die Categories-Tabelle, damit wir in der Abfrage
- * bei Bedarf auch den Kategorienamen durchsuchen können (C.name).
- */
 $sql = "
     SELECT
         L.id,
@@ -41,13 +33,11 @@ $sql = "
 
 $params = [];
 
-// Kategorie-Filter (z. B. wenn man links draufgeklickt hat)
 if ($catFilter) {
     $sql .= " AND L.category_id = :catId";
     $params[':catId'] = $catFilter;
 }
 
-// Such-Filter (nach Titel, Beschreibung UND Kategoriename)
 if ($searchParam) {
     $sql .= " 
       AND (
@@ -59,16 +49,12 @@ if ($searchParam) {
     $params[':searchTerm'] = '%' . $searchParam . '%';
 }
 
-// Zufällige Sortierung & Limit
 $sql .= " ORDER BY RAND() LIMIT 40";
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $listings = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-/**
- * Wandelt price_type in Klartext (Festpreis, Verhandlungsbasis usw.)
- */
 function translatePriceType($type) {
     switch ($type) {
         case 'fixed':
@@ -199,7 +185,6 @@ function translatePriceType($type) {
             <h1>Nerdeal</h1>
         </div>
         <div class="search-bar">
-            <!-- Füllt das Suchfeld, falls bereits per GET gesucht wurde -->
             <input type="text" id="search" placeholder="Suche..." 
                    value="<?php echo isset($_GET['search']) ? htmlspecialchars($_GET['search']) : ''; ?>">
             <button onclick="searchItems()">Suchen</button>
@@ -220,7 +205,6 @@ function translatePriceType($type) {
 <div class="wrapper">
     <aside class="sidebar">
         <h3>Kategorien</h3>
-        <!-- Link für Alle -->
         <a href="index.php">Alle anzeigen</a>
         <?php foreach ($categories as $cat): ?>
             <a href="index.php?category=<?php echo $cat['id']; ?>">
@@ -234,7 +218,7 @@ function translatePriceType($type) {
         <div class="listings">
             <?php foreach ($listings as $item): ?>
                 <?php $priceLabel = translatePriceType($item['price_type']); ?>
-                <a class="listing-card" href="offer.php?id=<?php echo $item['id']; ?>">
+                <a class="listing-card" href="listing.php?id=<?php echo $item['id']; ?>">
                     <?php if (!empty($item['image_url'])): ?>
                         <img src="<?php echo htmlspecialchars($item['image_url']); ?>" alt="Angebot">
                     <?php endif; ?>
@@ -248,14 +232,14 @@ function translatePriceType($type) {
 </div>
 
 <script>
-function searchItems() {
-    const query = document.getElementById('search').value.trim();
-    if (query) {
-        window.location.href = 'index.php?search=' + encodeURIComponent(query);
-    } else {
-        window.location.href = 'index.php';
+    function searchItems() {
+        const query = document.getElementById('search').value.trim();
+        if (query) {
+            window.location.href = 'index.php?search=' + encodeURIComponent(query);
+        } else {
+            window.location.href = 'index.php';
+        }
     }
-}
 </script>
 
 </body>

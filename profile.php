@@ -9,41 +9,71 @@ if (!isset($_SESSION['user_id'])) {
 
 $pdo->exec("SET NAMES 'utf8mb4'");
 
-// Benutzerdaten abrufen
+$userId = $_SESSION['user_id'];
+
 $stmt = $pdo->prepare("SELECT username, email, profile_picture FROM user WHERE id = ?");
-$stmt->execute([$_SESSION['user_id']]);
+$stmt->execute([$userId]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// Falls kein Profilbild existiert, Standardbild "placeholder.png" verwenden
 $profileImage = $user['profile_picture'] ?? 'placeholder.png';
 
-// Eigene Anzeigen abrufen
 $stmt = $pdo->prepare("
     SELECT L.id, L.title, L.price, L.price_type, 
-    (SELECT I.image_url FROM Images I WHERE I.listing_id = L.id LIMIT 1) AS image_url 
-    FROM Listings L WHERE user_id = ? AND active = 1");
-$stmt->execute([$_SESSION['user_id']]);
+           (SELECT I.image_url FROM Images I WHERE I.listing_id = L.id LIMIT 1) AS image_url 
+    FROM Listings L
+    WHERE user_id = ? AND active = 1
+");
+$stmt->execute([$userId]);
 $listings = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Eigene Chats abrufen
-$stmt = $pdo->prepare("SELECT id FROM Chats WHERE user1_id = ? OR user2_id = ?");
-$stmt->execute([$_SESSION['user_id'], $_SESSION['user_id']]);
-$chats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$stmt = $pdo->prepare("SELECT * FROM chats WHERE user1_id = ? OR user2_id = ?");
+$stmt->execute([$userId, $userId]);
+$allChats = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Standard-Tab setzen
 $tab = $_GET['tab'] ?? 'profil';
-
 ?>
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mein Profil - Nerdeal</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+        }
+
+        header {
+            background-color: #2c3e50;
+            color: #fff;
+            padding: 20px;
+        }
+        .header-container {
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header-container .logo h1 {
+            font-size: 24px;
+            margin: 0;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            font-size: 16px;
+            margin-left: 20px;
+        }
+        nav a:hover {
+            text-decoration: underline;
+        }
+
         .profile-container {
             display: flex;
             max-width: 1000px;
@@ -60,18 +90,23 @@ $tab = $_GET['tab'] ?? 'profil';
             padding: 20px;
             border-right: 2px solid #ddd;
         }
-
         .sidebar ul {
             list-style: none;
             padding: 0;
         }
-
         .sidebar ul li a {
             text-decoration: none;
             color: #333;
             font-size: 16px;
             padding: 10px;
             display: block;
+        }
+        .sidebar ul li a:hover {
+            background-color: #eaeaea;
+        }
+        .sidebar ul li a.active {
+            font-weight: bold;
+            text-decoration: underline;
         }
 
         .profile-content {
@@ -83,7 +118,6 @@ $tab = $_GET['tab'] ?? 'profil';
             padding: 12px;
             border-bottom: 1px solid #ddd;
         }
-
         .profile-img {
             width: 100px;
             height: 100px;
@@ -91,14 +125,12 @@ $tab = $_GET['tab'] ?? 'profil';
             object-fit: cover;
             border: 2px solid #ddd;
         }
-
         .edit-link {
             color: #3498db;
             text-decoration: none;
             font-weight: bold;
             cursor: pointer;
         }
-
         .edit-input {
             display: none;
             margin-top: 5px;
@@ -109,7 +141,6 @@ $tab = $_GET['tab'] ?? 'profil';
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 20px;
         }
-
         .listing-card {
             border: 1px solid #ddd;
             padding: 10px;
@@ -118,14 +149,12 @@ $tab = $_GET['tab'] ?? 'profil';
             text-align: center;
             background-color: #fff;
         }
-
         .listing-card img {
             width: 100%;
             height: 120px;
             object-fit: cover;
             border-radius: 5px;
         }
-
         .delete-icon {
             position: absolute;
             top: 5px;
@@ -150,91 +179,188 @@ $tab = $_GET['tab'] ?? 'profil';
             min-height: 200px;
             background-color: #f9f9f9;
         }
+
+        .chat-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 20px;
+        }
+        .chat-card {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            transition: box-shadow 0.2s ease;
+        }
+        .chat-card:hover {
+            box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+        }
+        .chat-card h3 {
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        .chat-card p {
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: #555;
+        }
     </style>
 </head>
 <body>
-
-<div class="profile-container">
-    <aside class="sidebar">
-        <ul>
-            <li><a href="profile.php?tab=profil" class="<?= ($tab == 'profil') ? 'active' : '' ?>">Profil</a></li>
-            <li><a href="profile.php?tab=anzeigen" class="<?= ($tab == 'anzeigen') ? 'active' : '' ?>">Anzeigen</a></li>
-            <li><a href="profile.php?tab=chats" class="<?= ($tab == 'chats') ? 'active' : '' ?>">Chats</a></li>
-        </ul>
-    </aside>
-
-    <section class="profile-content">
-        <?php if ($tab == 'profil'): ?>
-            <h1>Profilinformationen</h1>
-            <table class="profile-table">
-                <tr>
-                    <td>Profilbild</td>
-                    <td><img src="<?= htmlspecialchars($profileImage) ?>" alt="Profilbild" class="profile-img"></td>
-                    <td><span class="edit-link" onclick="toggleEdit('profile_picture')">Bearbeiten</span></td>
-                </tr>
-                <tr>
-                    <td>Profilname</td>
-                    <td><?= htmlspecialchars($user['username']) ?></td>
-                    <td><span class="edit-link" onclick="toggleEdit('username')">Bearbeiten</span></td>
-                </tr>
-                <tr>
-                    <td>E-Mail</td>
-                    <td><?= htmlspecialchars($user['email']) ?></td>
-                    <td><span class="edit-link" onclick="toggleEdit('email')">Bearbeiten</span></td>
-                </tr>
-            </table>
-
-            <div class="edit-input" id="edit-profile_picture">
-                <input type="file" id="new-profile_picture" accept="image/*">
-                <button onclick="updateProfile('profile_picture')">Speichern</button>
+    <header>
+        <div class="header-container">
+            <div class="logo">
+                <h1>Nerdeal</h1>
             </div>
+            <nav>
+                <a href="index.php">Startseite</a>
+                <a href="logout.php">Abmelden</a>
+            </nav>
+        </div>
+    </header>
 
-            <div class="edit-input" id="edit-username">
-                <input type="text" id="new-username" value="<?= htmlspecialchars($user['username']) ?>">
-                <button onclick="updateProfile('username')">Speichern</button>
-            </div>
+    <div class="profile-container">
+        <aside class="sidebar">
+            <ul>
+                <li>
+                    <a href="profile.php?tab=profil" class="<?= ($tab == 'profil') ? 'active' : '' ?>">
+                        Profil
+                    </a>
+                </li>
+                <li>
+                    <a href="profile.php?tab=anzeigen" class="<?= ($tab == 'anzeigen') ? 'active' : '' ?>">
+                        Anzeigen
+                    </a>
+                </li>
+                <li>
+                    <a href="profile.php?tab=chats" class="<?= ($tab == 'chats') ? 'active' : '' ?>">
+                        Chats
+                    </a>
+                </li>
+            </ul>
+        </aside>
 
-            <div class="edit-input" id="edit-email">
-                <input type="email" id="new-email" value="<?= htmlspecialchars($user['email']) ?>">
-                <button onclick="updateProfile('email')">Speichern</button>
-            </div>
+        <section class="profile-content">
+            <?php if ($tab == 'profil'): ?>
+                <h1>Profilinformationen</h1>
+                <table class="profile-table">
+                    <tr>
+                        <td>Profilbild</td>
+                        <td><img src="<?= htmlspecialchars($profileImage) ?>" alt="Profilbild" class="profile-img"></td>
+                        <td><span class="edit-link" onclick="toggleEdit('profile_picture')">Bearbeiten</span></td>
+                    </tr>
+                    <tr>
+                        <td>Profilname</td>
+                        <td><?= htmlspecialchars($user['username']) ?></td>
+                        <td><span class="edit-link" onclick="toggleEdit('username')">Bearbeiten</span></td>
+                    </tr>
+                    <tr>
+                        <td>E-Mail</td>
+                        <td><?= htmlspecialchars($user['email']) ?></td>
+                        <td><span class="edit-link" onclick="toggleEdit('email')">Bearbeiten</span></td>
+                    </tr>
+                </table>
 
-        <?php elseif ($tab == 'anzeigen'): ?>
-            <h1>Meine Anzeigen</h1>
-            <div class="listings">
-                <?php foreach ($listings as $listing): ?>
-                    <div class="listing-card">
-                        <button class="delete-icon" onclick="deleteListing(<?= $listing['id'] ?>)">🗑</button>
-                        <img src="<?= htmlspecialchars($listing['image_url'] ?: 'placeholder.png') ?>" alt="Bild">
-                        <h3><?= htmlspecialchars($listing['title']) ?></h3>
-                        <p>Preis: <?= number_format($listing['price'], 2, ',', '.') ?> €</p>
-                    </div>
-                <?php endforeach; ?>
-            </div>
+                <div class="edit-input" id="edit-profile_picture">
+                    <input type="file" id="new-profile_picture" accept="image/*">
+                    <button onclick="updateProfile('profile_picture')">Speichern</button>
+                </div>
 
-        <?php elseif ($tab == 'chats'): ?>
-            <h1>Meine Chats</h1>
-            <div class="chat-box">
-                <?php foreach ($chats as $chat): ?>
-                    <p><a href="chat.php?id=<?= $chat['id'] ?>">Chat #<?= $chat['id'] ?></a></p>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
-    </section>
-</div>
+                <div class="edit-input" id="edit-username">
+                    <input type="text" id="new-username" value="<?= htmlspecialchars($user['username']) ?>">
+                    <button onclick="updateProfile('username')">Speichern</button>
+                </div>
 
-<script>
-function toggleEdit(field) {
-    $('.edit-input').hide();
-    $('#edit-' + field).show();
-}
+                <div class="edit-input" id="edit-email">
+                    <input type="email" id="new-email" value="<?= htmlspecialchars($user['email']) ?>">
+                    <button onclick="updateProfile('email')">Speichern</button>
+                </div>
 
-function deleteListing(id) {
-    $.post('delete_listing.php', { id: id }, function() {
-        location.reload();
-    });
-}
-</script>
+            <?php elseif ($tab == 'anzeigen'): ?>
+                <h1>Meine Anzeigen</h1>
+                <div class="listings">
+                    <?php foreach ($listings as $listing): ?>
+                        <div class="listing-card">
+                            <button class="delete-icon" onclick="deleteListing(<?= $listing['id'] ?>)">🗑</button>
+                            <img src="<?= htmlspecialchars($listing['image_url'] ?: 'placeholder.png') ?>" alt="Bild">
+                            <h3><?= htmlspecialchars($listing['title']) ?></h3>
+                            <p>Preis: <?= number_format($listing['price'], 2, ',', '.') ?> €</p>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
 
+            <?php elseif ($tab == 'chats'): ?>
+                <h1>Meine Chats</h1>
+                <?php
+                if (!$allChats) {
+                    echo "<p>Keine Chats vorhanden.</p>";
+                } else {
+                    echo '<div class="chat-cards">';
+                    foreach ($allChats as $chatRow) {
+                        $partner = ($chatRow['user1_id'] == $userId) ? $chatRow['user2_id'] : $chatRow['user1_id'];
+
+                        $stmtPartner = $pdo->prepare("SELECT username FROM user WHERE id = ?");
+                        $stmtPartner->execute([$partner]);
+                        $partnerInfo = $stmtPartner->fetch(PDO::FETCH_ASSOC);
+                        $partnerName = $partnerInfo ? $partnerInfo['username'] : '???';
+
+                        $stmtLast = $pdo->prepare("
+                            SELECT content, created_at
+                            FROM messages
+                            WHERE chat_id = ?
+                            ORDER BY created_at DESC
+                            LIMIT 1
+                        ");
+                        $stmtLast->execute([$chatRow['id']]);
+                        $lastMsg = $stmtLast->fetch(PDO::FETCH_ASSOC);
+
+                        $lastContent = $lastMsg ? $lastMsg['content'] : 'Keine Nachrichten';
+                        $lastCreated = $lastMsg ? date('d.m.Y H:i', strtotime($lastMsg['created_at'])) : '';
+
+                        ?>
+                        <div class="chat-card" onclick="window.location.href='chat.php?id=<?= $chatRow['id'] ?>'">
+                            <h3><?= htmlspecialchars($partnerName) ?></h3>
+                            <p>
+                                <?php 
+                                  $lower = strtolower($lastContent);
+                                  if (strpos($lower, 'data:image/') === 0 || preg_match('/\\.(png|jpg|jpeg|gif)$/i', $lower)) {
+                                      echo '[Bild]';
+                                  } else {
+                                      echo htmlspecialchars(mb_strimwidth($lastContent, 0, 40, '...'));
+                                  }
+                                ?>
+                            </p>
+                            <?php if ($lastCreated): ?>
+                                <p><small><?= $lastCreated ?></small></p>
+                            <?php endif; ?>
+                        </div>
+                        <?php
+                    }
+                    echo '</div>';
+                }
+                ?>
+            <?php endif; ?>
+        </section>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+    function toggleEdit(field) {
+        $('.edit-input').hide();
+        $('#edit-' + field).show();
+    }
+
+    function updateProfile(field) {
+        // e.g. AJAX call to update user's profile
+        alert('Updating ' + field + ' ...');
+    }
+
+    function deleteListing(id) {
+        $.post('delete_listing.php', { id: id }, function() {
+            location.reload();
+        });
+    }
+    </script>
 </body>
 </html>

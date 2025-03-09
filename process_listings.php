@@ -15,25 +15,20 @@ $plz = $_POST['plz'] ?? null;
 $user_id = $_SESSION['user_id'];
 
 try {
-    // Eintrag in der Datenbank speichern
     $stmt = $pdo->prepare("INSERT INTO Listings (user_id, title, category_id, price, price_type, description, plz, created_at) 
                            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
     $stmt->execute([$user_id, $title, $category, $price, $price_type, $description, $plz]);
     $listing_id = $pdo->lastInsertId();
 
-    // Bilder hochladen (falls vorhanden)
     if (!empty($_FILES['images']['name'][0])) {
         foreach ($_FILES['images']['tmp_name'] as $index => $tmpName) {
             if ($_FILES['images']['error'][$index] === 0) {
-                // Pfad in den user-images-Ordner
                 $uploadDir = 'user-images/';
                 $uniqueName = uniqid() . '_' . $_FILES['images']['name'][$index];
                 $imagePath = $uploadDir . $uniqueName;
 
-                // Datei verschieben
                 move_uploaded_file($tmpName, $imagePath);
 
-                // Datenbankeintrag für das Bild
                 $stmt = $pdo->prepare("INSERT INTO Images (listing_id, image_url) VALUES (?, ?)");
                 $stmt->execute([$listing_id, $imagePath]);
             }
