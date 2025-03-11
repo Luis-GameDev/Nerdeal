@@ -352,7 +352,7 @@ $tab = $_GET['tab'] ?? 'profil';
     }
 
     function updateProfile(field) {
-        // e.g. AJAX call to update user's profile
+        // add ajax call to update the profile field here
         alert('Updating ' + field + ' ...');
     }
 

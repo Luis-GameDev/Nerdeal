@@ -210,6 +210,7 @@ $messages = $stmtMsg->fetchAll(PDO::FETCH_ASSOC);
           <?php 
             $lower = strtolower($msg['content']);
             if (strpos($lower, 'data:image/') === 0 || preg_match('/\\.(png|jpg|jpeg|gif)$/i', $lower)) {
+              // if the message content is an image (base64 data URL or image file extension) display it as a image
               echo '<img src="' . htmlspecialchars($msg['content']) . '" class="chat-image" alt="Bild">';
             } else {
               echo nl2br(htmlspecialchars($msg['content']));

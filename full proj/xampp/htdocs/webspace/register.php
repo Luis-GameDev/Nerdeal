@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } else {
         $pswd_hash = password_hash($password, PASSWORD_DEFAULT);
 
+        // add email validation using MercuryMail and PHPMailer here later
         try {
             $stmt = $pdo->prepare("INSERT INTO user (username, email, pswd_hash) VALUES (?, ?, ?)");
             $stmt->bindParam(1, $username);
@@ -55,12 +56,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <main>
         <div class="form-container">
             <h2>Registrieren</h2>
-
             <?php if (isset($error)): ?>
                 <div class="error-message">
                     <?php echo htmlspecialchars($error); ?>
                 </div>
-            <?php endif; ?>
+            <?php endif ?>
 
             <form action="register.php" method="POST">
                 <div class="input-group">

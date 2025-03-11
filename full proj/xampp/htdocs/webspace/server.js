@@ -11,7 +11,7 @@ const db = mysql.createConnection({
 });
 db.connect();
 
-// This object will map userIds to open sockets
+// this will map user ids to open sockets
 const clients = {};
 
 wss.on('connection', (ws, req) => {
@@ -24,7 +24,6 @@ wss.on('connection', (ws, req) => {
     const data = JSON.parse(message);
 
     if (data.type === 'chatMessage') {
-      // Save message to DB
       const { chatId, senderId, content } = data;
       db.query(
         "INSERT INTO messages (chat_id, sender_id, content) VALUES (?, ?, ?)",
@@ -34,7 +33,7 @@ wss.on('connection', (ws, req) => {
             console.error("Error saving message:", err);
             return;
           }
-          // Forward the message to the recipient if online
+
           if (clients[data.recipientId]) {
             clients[data.recipientId].send(JSON.stringify({
               type: 'chatMessage',

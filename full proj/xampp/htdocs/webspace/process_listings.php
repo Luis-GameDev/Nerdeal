@@ -38,5 +38,5 @@ try {
     header("Location: index.php");
     exit();
 } catch (PDOException $e) {
-    die("Fehler beim Speichern der Anzeige: " . $e->getMessage());
+    die("Fehler beim Aufgeben der Anzeige: " . $e->getMessage());
 }
