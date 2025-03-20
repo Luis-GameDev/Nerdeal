@@ -155,13 +155,14 @@ $tab = $_GET['tab'] ?? 'profil';
             object-fit: cover;
             border-radius: 5px;
         }
-        .delete-icon {
+
+        .edit-icon {
             position: absolute;
             top: 5px;
             right: 5px;
             width: 25px;
             height: 25px;
-            background-color: red;
+            background-color: #3498db;
             color: white;
             border: none;
             border-radius: 50%;
@@ -170,6 +171,9 @@ $tab = $_GET['tab'] ?? 'profil';
             align-items: center;
             justify-content: center;
             cursor: pointer;
+        }
+        .edit-icon:hover {
+            background-color: #2980b9;
         }
 
         .chat-box {
@@ -282,7 +286,9 @@ $tab = $_GET['tab'] ?? 'profil';
                 <div class="listings">
                     <?php foreach ($listings as $listing): ?>
                         <div class="listing-card">
-                            <button class="delete-icon" onclick="deleteListing(<?= $listing['id'] ?>)">🗑</button>
+                            <button class="edit-icon" onclick="window.location.href='edit_listings.php?id=<?= $listing['id'] ?>'">
+                            ✎
+                            </button>
                             <img src="<?= htmlspecialchars($listing['image_url'] ?: 'placeholder.png') ?>" alt="Bild">
                             <h3><?= htmlspecialchars($listing['title']) ?></h3>
                             <p>Preis: <?= number_format($listing['price'], 2, ',', '.') ?> €</p>
@@ -317,7 +323,6 @@ $tab = $_GET['tab'] ?? 'profil';
 
                         $lastContent = $lastMsg ? $lastMsg['content'] : 'Keine Nachrichten';
                         $lastCreated = $lastMsg ? date('d.m.Y H:i', strtotime($lastMsg['created_at'])) : '';
-
                         ?>
                         <div class="chat-card" onclick="window.location.href='chat.php?id=<?= $chatRow['id'] ?>'">
                             <h3><?= htmlspecialchars($partnerName) ?></h3>
@@ -347,18 +352,20 @@ $tab = $_GET['tab'] ?? 'profil';
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
     function toggleEdit(field) {
-        $('.edit-input').hide();
-        $('#edit-' + field).show();
+        document.querySelectorAll('.edit-input').forEach(el => el.style.display = 'none');
+        document.getElementById('edit-' + field).style.display = 'block';
     }
 
     function updateProfile(field) {
-        // add ajax call to update the profile field here
-        alert('Updating ' + field + ' ...');
-    }
+        const value = document.getElementById('new-' + field).value.trim();
+        if (!value) return alert('Eingabe darf nicht leer sein.');
 
-    function deleteListing(id) {
-        $.post('delete_listing.php', { id: id }, function() {
-            location.reload();
+        $.post('update_profile.php', { field, value }, function(resp) {
+            if (resp === 'ok') {
+                location.reload();
+            } else {
+                alert('Fehler beim Aktualisieren: ' + resp);
+            }
         });
     }
     </script>
